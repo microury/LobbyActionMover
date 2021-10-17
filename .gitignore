@@ -1,0 +1,10 @@
+.vs/
+obj/
+bin/
+packages/
+*.exe
+*.config
+*.pdb
+*.dll
+*.xml
+

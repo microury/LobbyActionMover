@@ -17,17 +17,18 @@ namespace LobbyActionMover
     public partial class LAMover : Form
     {
         public static string currentProgramFolder = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-        
+
         //public List<string> csvValues_string;
-        public string PSO2Directory= "";
+        public string PSO2Directory = "";
         public bool csvDataLoaded = false;
         public bool createBackups = false;
+        public bool overWriteDirectly = false;
 
         public LAMover()
         {
             InitializeComponent();
             System.Environment.SetEnvironmentVariable("PATH", Environment.GetEnvironmentVariable("PATH") + currentProgramFolder); // Should fix ooz.dll problems
-
+            csvValues = new List<LAData>();
         }
 
         private void fileToolStripMenuItem_Click(object sender, EventArgs e)
@@ -91,14 +92,14 @@ namespace LobbyActionMover
                             {
                                 if (values[i].Trim() == "Male" || values[i].Trim() == "Female")
                                 {
-                                    if (gender != values[i].Trim()) { 
+                                    if (gender != values[i].Trim()) {
                                         gender = values[i].Trim();
                                         emoteVariation = 0;
                                     }
                                 }
                             }
                             //values[8].Trim();//Male or female
-                            if (values[0].Trim() != "") { 
+                            if (values[0].Trim() != "") {
                                 commandName = values[0].Trim();
 
                             }
@@ -109,8 +110,8 @@ namespace LobbyActionMover
                             var valueString = commandName + "-" + values[2].Trim() + "-" + gender + "-" + emoteVariation;
 
                             var lobbyactiondat = new LAData() {
-                                valueData= values,
-                                valueDescription = valueString, 
+                                valueData = values,
+                                valueDescription = valueString,
                             };
 
                             csvValues.Add(lobbyactiondat);
@@ -137,7 +138,10 @@ namespace LobbyActionMover
             var pathIncorrect = true;
             while (pathIncorrect)
             {
-                if (goodFolderDialog.ShowDialog() == CommonFileDialogResult.Ok)
+                var goodfolder_result = goodFolderDialog.ShowDialog();
+                if (goodfolder_result == CommonFileDialogResult.Cancel)
+                    break;
+                if (goodfolder_result == CommonFileDialogResult.Ok)
                 {
 
                     PSO2Directory = goodFolderDialog.FileName;
@@ -161,7 +165,7 @@ namespace LobbyActionMover
                 listBox1.Items.Clear();
                 foreach (LAData str in csvValues)
                 {
-                    if (str.valueDescription.Contains(textBox1.Text)){
+                    if (str.valueDescription.Contains(textBox1.Text)) {
                         listBox1.Items.Add(str);
                     }
                 }
@@ -171,7 +175,7 @@ namespace LobbyActionMover
             {
                 foreach (LAData str in csvValues)
                 {
-                        listBox1.Items.Add(str);
+                    listBox1.Items.Add(str);
                 }
             }
         }
@@ -204,11 +208,14 @@ namespace LobbyActionMover
         {
 
         }
-
+        public string RemoveInvalidChars(string filename)
+        {
+            return string.Concat(filename.Split(Path.GetInvalidPathChars()));
+        }
         private void button1_Click(object sender, EventArgs e) // Save and create replaced LA
         {
-            
-            
+
+
 
             if (csvDataLoaded)
             {
@@ -227,22 +234,30 @@ namespace LobbyActionMover
                     var olditemStringdescr = oldItem.valueDescription.Split('-');
                     string olditemStringdescr_formatted = olditemStringdescr[1] + "_" + olditemStringdescr[2] + "_" + olditemStringdescr[3];
 
-                    string newReplacedLAFolder = currentProgramFolder + "\\" + newitemStringdescr_formatted + "_over_"+ olditemStringdescr_formatted;
+                    string newReplacedLAFolder = RemoveInvalidChars(currentProgramFolder + "\\" + newitemStringdescr_formatted + "_over_" + olditemStringdescr_formatted);
                     if (!Directory.Exists(newReplacedLAFolder))
                         Directory.CreateDirectory(newReplacedLAFolder);
                     string newReplacedLAFolder_NGS = newReplacedLAFolder + "\\" + "win32reboot";
-                    if (!Directory.Exists(newReplacedLAFolder_NGS))
-                        Directory.CreateDirectory(newReplacedLAFolder_NGS);
-
+                    string newReplacedLAFolder_base = newReplacedLAFolder + "\\" + "win32";
+                    if (!overWriteDirectly)
+                    {
+                        if (!Directory.Exists(newReplacedLAFolder_NGS))
+                            Directory.CreateDirectory(newReplacedLAFolder_NGS);
+                        if (!Directory.Exists(newReplacedLAFolder_base))
+                            Directory.CreateDirectory(newReplacedLAFolder_base);
+                    }
                     //Backups
                     string replacedLaFolder_backupfolder = newReplacedLAFolder + "\\" + "backup";
+                    string replacedLaFolder_backupfolder_base = newReplacedLAFolder + "\\" + "backup" + "\\" + "win32";
                     string replacedLaFolder_backupfolder_NGS = newReplacedLAFolder + "\\" + "backup" + "\\" + "win32reboot";
                     if (createBackups)
                     {
-                        
+
                         if (!Directory.Exists(replacedLaFolder_backupfolder))
                             Directory.CreateDirectory(replacedLaFolder_backupfolder);
-                        
+                        if (!Directory.Exists(replacedLaFolder_backupfolder_base))
+                            Directory.CreateDirectory(replacedLaFolder_backupfolder_base);
+
                         if (!Directory.Exists(replacedLaFolder_backupfolder_NGS))
                             Directory.CreateDirectory(replacedLaFolder_backupfolder_NGS);
                     }
@@ -288,13 +303,13 @@ namespace LobbyActionMover
                     Console.WriteLine("CMAQM:" + castmaleAQM);
                     Console.WriteLine("HUAQM:" + humanAQM);
                     Console.Out.WriteLine("NewItemAqms:");
-                    
+
                     foreach (string str in newItemsAqms)
                     {
                         camandcaf = false;
                         Console.Out.WriteLine(str);
                         var fileNameString = Path.GetFileName(str).Trim();
-                        
+
                         if (fileNameString.Contains("cam") || fileNameString.Contains("caf")) // Dominant that should be used instead of lacf or lacm
                         {
                             camandcaf = true;
@@ -317,11 +332,18 @@ namespace LobbyActionMover
                     }
                     if (createBackups)
                     {
-                        File.Copy(PSO2Directory + "\\data\\win32\\" + oldItem.valueData[3], replacedLaFolder_backupfolder +"\\"+ oldItem.valueData[3]);
+                        File.Copy(PSO2Directory + "\\data\\win32\\" + oldItem.valueData[3], replacedLaFolder_backupfolder_base + "\\" + oldItem.valueData[3]);
                     }
-                        packIceFromDirectoryToFile(currentProgramFolder + "//temp",
-                                ReadWhiteList(Path.Combine(currentProgramFolder, "group1.txt")),
-                                false, false, true, false, newReplacedLAFolder + "\\"+ oldItem.valueData[3]);
+
+                    var basedirectory = newReplacedLAFolder_base + "\\" + oldItem.valueData[3];
+
+                    if (overWriteDirectly)
+                    {
+                        basedirectory = PSO2Directory + "\\data\\win32\\" + oldItem.valueData[3];
+                    }
+                    packIceFromDirectoryToFile(currentProgramFolder + "//temp",
+                            ReadWhiteList(Path.Combine(currentProgramFolder, "group1.txt")),
+                            false, false, true, false, basedirectory);
 
                     ///////////////////////////////////////Creating NGS files, oh boy
                     exportTemp = currentProgramFolder + "\\temp\\ngs";
@@ -338,90 +360,56 @@ namespace LobbyActionMover
                     string tempNgsfolderstr;
                     string newFolderNGS;
                     ////////////////////////////////////// cast female
-                    if (castfemaleAQM != "")
-                    {
-                        valData = oldItem.valueData[6].Trim();// 6 -- female cast location array value
-                        ngsIceSubFolder = valData.Substring(0, 2);
-                        ngsIceOrgName = valData.Substring(2, valData.Length - 2);
-
-                        if (createBackups)
+                    void ngsfileIcecreation (string genderaqm, int arrayvalue){
+                        if (genderaqm != "")
                         {
-                            if (!Directory.Exists(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder))
-                                Directory.CreateDirectory(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder);
-                            File.Copy(PSO2Directory + "\\data\\win32reboot\\" + ngsIceSubFolder + "\\" + ngsIceOrgName,
-                                replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder + "\\" + ngsIceOrgName);
+                            valData = oldItem.valueData[arrayvalue].Trim();// 6 -- female cast location array value
+                            ngsIceSubFolder = valData.Substring(0, 2);
+                            ngsIceOrgName = valData.Substring(2, valData.Length - 2);
+
+                            if (createBackups)
+                            {
+                                if (!Directory.Exists(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder))
+                                    Directory.CreateDirectory(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder);
+                                File.Copy(PSO2Directory + "\\data\\win32reboot\\" + ngsIceSubFolder + "\\" + ngsIceOrgName,
+                                    replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder + "\\" + ngsIceOrgName);
+                            }
+
+                            tempNgsfolderstr = exportTemp + "\\" + Path.GetFileName(genderaqm);
+
+                            File.Copy(genderaqm, tempNgsfolderstr); // Copy AQM to temp ngs folder
+                            if (!overWriteDirectly)
+                            {
+                                if (!Directory.Exists(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder))
+                                    Directory.CreateDirectory(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder);// Create win32reboot subfolder
+                            }
+
+                            newFolderNGS = newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder;
+
+                            if (overWriteDirectly)
+                            {
+                                newFolderNGS = PSO2Directory + "\\data\\win32reboot\\" + ngsIceSubFolder;
+                            }
+                            packIceFromDirectoryToFile(exportTemp,
+                                        ReadWhiteList(Path.Combine(currentProgramFolder, "group1.txt")), // Create ice
+                                        false, false, true, false, newFolderNGS + "\\" + ngsIceOrgName);
+
+                            File.Delete(tempNgsfolderstr); // Delete aqm and start again
                         }
-
-                        tempNgsfolderstr = exportTemp + "\\" + Path.GetFileName(castfemaleAQM);
-
-                        File.Copy(castfemaleAQM, tempNgsfolderstr); // Copy AQM to temp ngs folder
-                        if (!Directory.Exists(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder))
-                            Directory.CreateDirectory(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder);// Create win32reboot subfolder
-
-                        newFolderNGS = newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder;
-                        packIceFromDirectoryToFile(exportTemp,
-                                    ReadWhiteList(Path.Combine(currentProgramFolder, "group1.txt")), // Create ice
-                                    false, false, true, false, newFolderNGS + "\\" + ngsIceOrgName);
-
-                        File.Delete(tempNgsfolderstr); // Delete aqm and start again
                     }
-                    ////////////////////////////////////// cast male
-                    if (castmaleAQM != "")
-                    {
-                        valData = oldItem.valueData[5].Trim();// 5 -- male cast location array value
-                        ngsIceSubFolder = valData.Substring(0, 2);
-                        ngsIceOrgName = valData.Substring(2, valData.Length - 2);
+                    ngsfileIcecreation(castfemaleAQM, 6);
+                    ngsfileIcecreation(castmaleAQM, 5);
+                    ngsfileIcecreation(humanAQM, 4);
 
-                        if (createBackups)
-                        {
-                            if (!Directory.Exists(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder))
-                                Directory.CreateDirectory(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder);
-                            File.Copy(PSO2Directory + "\\data\\win32reboot\\" + ngsIceSubFolder + "\\" + ngsIceOrgName,
-                                replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder + "\\" + ngsIceOrgName);
-                        }
-
-                        tempNgsfolderstr = exportTemp + "\\" + Path.GetFileName(castmaleAQM);
-
-                        File.Copy(castmaleAQM, tempNgsfolderstr); // Copy AQM to temp ngs folder
-                        if (!Directory.Exists(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder))
-                            Directory.CreateDirectory(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder);// Create win32reboot subfolder
-
-                        newFolderNGS = newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder;
-                        packIceFromDirectoryToFile(exportTemp,
-                                    ReadWhiteList(Path.Combine(currentProgramFolder, "group1.txt")), // Create ice
-                                    false, false, true, false, newFolderNGS + "\\" + ngsIceOrgName);
-
-                        File.Delete(tempNgsfolderstr); // Delete aqm and start again
-                    }
-                    ////////////////////////////////////// Human AQM
-                    valData = oldItem.valueData[4].Trim();// 5 -- male cast location array value
-                    ngsIceSubFolder = valData.Substring(0, 2);
-                    ngsIceOrgName = valData.Substring(2, valData.Length - 2);
-
-                    if (createBackups)
-                    {
-                        if (!Directory.Exists(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder))
-                            Directory.CreateDirectory(replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder);
-                        File.Copy(PSO2Directory + "\\data\\win32reboot\\" + ngsIceSubFolder + "\\" + ngsIceOrgName,
-                            replacedLaFolder_backupfolder_NGS + "\\" + ngsIceSubFolder + "\\" + ngsIceOrgName);
-                    }
-
-                    tempNgsfolderstr = exportTemp + "\\" + Path.GetFileName(humanAQM);
-
-                    File.Copy(humanAQM, tempNgsfolderstr); // Copy AQM to temp ngs folder
-                    if (!Directory.Exists(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder))
-                        Directory.CreateDirectory(newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder);// Create win32reboot subfolder
-
-                    newFolderNGS = newReplacedLAFolder_NGS + "\\" + ngsIceSubFolder;
-                    packIceFromDirectoryToFile(exportTemp,
-                                ReadWhiteList(Path.Combine(currentProgramFolder, "group1.txt")), // Create ice
-                                false, false, true, false, newFolderNGS + "\\" + ngsIceOrgName);
-
-                    File.Delete(tempNgsfolderstr); // Delete aqm and start again
 
                     //Clean Temp folders and such, or else it'll keep using the old files
                     CleanFolder();
-                    MessageBox.Show("Saved lobby action in program folder.");
+                    if(!overWriteDirectly)
+                        MessageBox.Show("Saved lobby action in program folder.");
+                    else
+                    {
+                        MessageBox.Show("Saved lobby action in win32/win32reboot.\nReload LA's to see effect.");
+                    }
 
                 }
                 else
@@ -434,7 +422,6 @@ namespace LobbyActionMover
                 MessageBox.Show("There is no CSV data loaded.");
             }
         }
-
         private static bool writeGroupToDirectory(byte[][] groupToWrite, string directory)
         {
             if (!Directory.Exists(directory) && groupToWrite != null && (uint)groupToWrite.Length > 0U)
@@ -583,6 +570,11 @@ namespace LobbyActionMover
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
             createBackups = checkBox1.Checked;
+        }
+
+        private void checkBox2_CheckedChanged(object sender, EventArgs e)
+        {
+            overWriteDirectly = checkBox2.Checked;
         }
     }
 }
